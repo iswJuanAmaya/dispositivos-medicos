@@ -1,0 +1,24 @@
+-Código del expediente
+-Número de procedimiento de contratación
+-Dependencia (SOLO TEXTO DESPUÉS DEL GUIÓN “-”)
+-Unidad Compradora (SOLO CÓDIGO IDENTIDICADOR)
+-Correo electrónico Unidad compradora
+-Nombre del procedimiento de contratación
+-Tipo de procedimiento
+-Entidad Federativa
+-Año del ejercicio presupuestal
+-Procedimiento exclusivo para MiPymes
+-Fecha de Publicación
+-Lista de Claves
+-Participación de Testigo Social
+-Abastecimiento simultaneo
+-Plurianual
+-Tipo de contratación
+-Anticipo
+-Forma de Pago
+-Plazo para entrega de garantía
+-Número de meses para la garantía
+-Carácter
+-Caso fortuito o fuerza mayor
+-Tipo de contrato abierto
+-Garantía de cumplimiento

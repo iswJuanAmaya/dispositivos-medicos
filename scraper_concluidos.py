@@ -10,6 +10,77 @@ import pandas as pd
 from datetime import date
 import re
 import random
+import shutil
+import os
+
+
+def timing_val(func):
+    def wrapper(*arg, **kw):
+        '''source: http://www.daniweb.com/code/snippet368.html'''
+        t1 = time.time()
+        func(*arg, **kw)
+        t2 = time.time()
+        segs = int(t2 - t1)
+        return f"tardó {segs} segs..."
+    return wrapper
+
+
+def delete_files_from_dir(dir:str):
+    print(f"Borrando el directorio: {dir}")
+    for root, dirs, files in os.walk(dir):
+        for f in files:
+            os.unlink(os.path.join(root, f))
+        for d in dirs:
+            shutil.rmtree(os.path.join(root, d))
+    
+    if os.listdir(dir) > 0:
+        raise Exception("Error borrando archivo descargado.")
+
+
+def download_wait(directory:str, timeout:int, nfiles:int=1):
+    """
+    Wait for downloads to finish with a specified timeout.
+    when the download is complete the file is send to s3 and 
+    after that is deleted from local storage
+
+    Args
+    ----
+    directory : str
+        The path to the folder where the files will be downloaded.
+    timeout : int
+        How many seconds to wait until timing out.
+    nfiles : int, defaults to None
+        If provided, also wait for the expected number of files.
+
+    """
+    print("Esperando descarga")
+
+    seconds = 0
+    dl_wait = True
+    while dl_wait and seconds < timeout:
+        time.sleep(1)
+        dl_wait = False
+        files = os.listdir(directory)
+        if nfiles and len(files) != nfiles:
+            dl_wait = True
+
+        for fname in files:
+            if fname.endswith('.crdownload'):
+                dl_wait = True
+
+        seconds += 1
+
+    if seconds >= timeout:
+        print("Error esperando descarga, se supero el tiempo de espera.")
+        delete_files_from_dir("./temp")
+    else:
+        print("Archivo descargado.")
+        if seconds < 15:
+            time.sleep( random.randint(3, 6) )
+
+        #Subir_File(AQUI DEBE IR LA FUNCIÓN QUE SUBE LOS ARCHIVOS)
+
+        delete_files_from_dir("./temp")
 
 
 def set_driver():
@@ -18,7 +89,7 @@ def set_driver():
 
     #setea configuraciones por defecto para el driver
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
+    #chrome_options.add_argument("--headless")
     chrome_options.add_argument("--window-size=1024,768")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
@@ -31,98 +102,9 @@ def set_driver():
     driver = webdriver.Chrome(options=chrome_options)
 
 
-def get_page(url: str) -> html:
-    """
-    this function makes the requests to the @url and returns the 
-    parsed html tree. as this function is used algo to get the detail
-    waith a random time first to avoid being blocked
-    """
-    #genera un random para dormir entre 4 y 12 segundos antes de hacer el requests
-    rdm = random.randint(4, 12)
-    print(f"dormirá por {rdm} segundos antes del requests")
-    time.sleep(rdm)
-
-    #hace el requests
-    page = requests.get(url)
-    tree = html.fromstring(page.content)
-    return tree
-
-
 def load_csv(file_name:str) -> pd.DataFrame:
     #lee la tabla de la pagina
     return pd.read_csv(file_name, encoding='utf-8')
-
-
-def get_by_xpath_and_clean(tree:html , xpath:str, i:int=0)->str:
-    """ this function gets the text from @tree via @xpath in the @i index and 
-    cleans it from \n, \t and \xa0, and returns the text. if @i is 'join' it
-    returns the text of all the elements in the xpath joined by a space"""
-    try:
-        if i=='join':
-            text = tree.xpath(xpath)
-            text = re.sub(r'[\n\t\xa0â\x80\x93]', '', ' '.join(text)).strip()
-            return text
-        else:
-            text = tree.xpath(xpath)[i]
-            text = re.sub(r'[\n\t\xa0â\x80\x93]', '', text).strip()
-            return text
-    except:
-        return None
-
-
-def find_new_jobs(links):
-    """given @link, this function looks for new jobs and adds them to the dataset"""
-    
-    global df, source, today, words_to_look, file_name
-
-    for i, link in enumerate(links):
-        """
-        for each job, get the detail and add it to the dataset,
-        also looks fot the words_to_look in the detail to see if 
-        it is an alert
-        """
-        #get the url of detail
-        detail_url = link
-        
-        #looks if the detail url is already in the dataset
-        if df['url_detail_id'][df['url_detail_id']==detail_url].any():
-            print('this job is already in the dataset')
-            continue
-
-        #if not  exist, get the detail
-        else:
-            print('nueva oportunidad encontrada')
-
-            detail_page = get_page(detail_url)
-            
-            #get the title
-            title = get_by_xpath_and_clean(detail_page, '//h1/text()')
-            
-            #get the location (type RFQ)
-            location = get_by_xpath_and_clean(detail_page, '//span[text()="Duty station"]/following-sibling::span/text()')
-            #Opening Date:
-            opening_date = get_by_xpath_and_clean(detail_page, 
-                '//span[text()="Application period"]/following-sibling::span/text()').split("to")[0].strip()
-            #Closing Date
-            closing_date = get_by_xpath_and_clean(detail_page, 
-                '//span[text()="Application period"]/following-sibling::span/text()').split("to")[1].strip()
-            
-            #find the body of the job and look for the words_to_look to appear once at least
-            is_alert = False
-
-            #text for search
-            text_for_alert = title + get_by_xpath_and_clean(detail_page, 
-                '(//span[@class="longTextDescription"])[1]//descendant::text()', i='join')
-            
-            if any(word in text_for_alert for word in words_to_look):
-                is_alert = True
-                
-            #add the new job to the dataset
-            df = df.append({'url_detail_id': detail_url, 'scrapped_day': today,  'title': title, 
-                    'opening_date': opening_date, 'closing_date': closing_date,'location': location,
-                    'is_alert': is_alert, 'source': source}, ignore_index=True)
-
-    df.to_csv(file_name, index=False, encoding='utf-8', header=True)
 
 
 def paginate() -> list:
