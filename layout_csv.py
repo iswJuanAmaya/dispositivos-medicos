@@ -7,13 +7,11 @@ df = pd.DataFrame(columns=['cod_exp','num_proc','dependencia','unidad_comp','cor
                         'tipo_proc','entidad_fed','anio_ej','proc_exc','fecha_pub','claves_list','part_testigo',
                         'abastecimiento_sim','plurianual','tipo_cont','anticipo','forma_pago','plazo_garant',
                         'meses_garant','caracter','caso_fort ','tipo_cont_abierto','uri','scrapped_day'])
-
 df.to_csv('concluidos.csv', index=False, encoding='utf-8', header=True)
 del df
 
 #crea el csv con el layout final de 
 df = pd.DataFrame(columns=['cod_exp','num_proc','anexo','scrapped_day'])
-
 df.to_csv('anexos.csv', index=False, encoding='utf-8', header=True)
 
 """
