@@ -6,7 +6,7 @@ import pandas as pd
 df = pd.DataFrame(columns=['cod_exp','num_proc','dependencia','unidad_comp','correo','nombre_procedimiento',
                         'tipo_proc','entidad_fed','anio_ej','proc_exc','fecha_pub','claves_list','part_testigo',
                         'abastecimiento_sim','plurianual','tipo_cont','anticipo','forma_pago','plazo_garant',
-                        'meses_garant','caracter','caso_fort ','tipo_cont_abierto','uri','scrapped_day'])
+                        'meses_garant','garant_cump','caracter','caso_fort ','tipo_cont_abierto','uri','scrapped_day'])
 df.to_csv('concluidos.csv', index=False, encoding='utf-8', header=True)
 del df
 

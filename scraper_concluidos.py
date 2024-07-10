@@ -16,7 +16,6 @@ import random
 import pandas as pd
 
 
-
 def timing_val(func):
     def wrapper(*arg, **kw):
         t1 = time.time()
@@ -33,17 +32,24 @@ def duerme(a:int, b:int=0):
     time.sleep(time_to_sleep)
 
 
-def delete_files():
+def delete_files(is_retry:bool=False):
     global anexos_dir
-    #print(f"Borrando el directorio: {anexos_dir}")
-    for root, dirs, files in os.walk(anexos_dir):
-        for f in files:
-            os.unlink(os.path.join(root, f))
-        for d in dirs:
-            shutil.rmtree(os.path.join(root, d))
-    
-    if len(os.listdir(anexos_dir)) > 0:
-        raise Exception("Error borrando archivo descargado.")
+    try:
+        #print(f"Borrando el directorio: {anexos_dir}")
+        for root, dirs, files in os.walk(anexos_dir):
+            for f in files:
+                os.unlink(os.path.join(root, f))
+            for d in dirs:
+                shutil.rmtree(os.path.join(root, d))
+        
+        if len(os.listdir(anexos_dir)) > 0:
+            raise Exception("Error borrando archivo descargado.")
+    except Exception as e:
+        if is_retry:
+            raise Exception(f"Error borrando archivos\n{e}")
+        else:
+            duerme(17)
+            delete_files(is_retry=True)
 
 
 def upload_files():
@@ -63,12 +69,10 @@ def download_wait(timeout:int, nfiles:int=1):
 
     def rename_files(prefix:str):
         dir = anexos_dir
-        for filename in os.listdir(dir):
-            new_filename = f"{prefix}_{filename}"
+        for i, filename in enumerate(os.listdir(dir)):
+            new_filename = f"{i+1}{prefix}_{filename}"
             new_filename = new_filename.replace(" ","_").strip()
             os.rename(dir+"/"+filename, dir+"/"+new_filename)
-
-    #print("Esperando descarga")
 
     seconds = 0
     dl_wait = True
@@ -80,13 +84,13 @@ def download_wait(timeout:int, nfiles:int=1):
             dl_wait = True
 
         for fname in files:
-            if fname.endswith('.crdownload'):
+            if fname.endswith('.crdownload') or fname.endswith('.temp') or fname.endswith('tmp'):
                 dl_wait = True
 
         seconds += 1
 
     if seconds >= timeout:
-        #print("Error esperando descarga, se superó el tiempo de espera.")
+        print("  Error esperando descarga, se superó el tiempo de espera.")
         delete_files()
     else:
         #print("Archivo descargado")
@@ -114,7 +118,7 @@ def set_driver():
         "download.prompt_for_download": False,
     }
     options.add_experimental_option("prefs", prefs)
-    #options.add_argument("--headless")
+    options.add_argument("--headless")
     options.add_argument("--window-size=1024,768")
     options.add_argument("--no-sandbox")
     options.add_argument("start-maximized")
@@ -229,7 +233,7 @@ def extraer_anexos():
         
         next_page_btn = driver.find_element(By.XPATH,'//*[@key="anexos"]/following-sibling::div//button[contains(@class,"p-paginator-next")]')
         if "p-disabled" in next_page_btn.get_attribute("class"):
-            print("No hay más páginas de anexos disponibles")
+            print("  No hay más páginas de anexos disponibles")
             break
         else:
             ActionChains(driver).scroll_to_element(next_page_btn)\
@@ -239,7 +243,7 @@ def extraer_anexos():
 
 
 def get_page_info() -> dict:
-    global driver, anuncio
+    global driver, anuncio, today
 
     #Código del expediente
     cod_exp = get_text_by_xpath(xp='//label[text()="Código del expediente:"]/following-sibling::label', required=True)
@@ -297,7 +301,7 @@ def get_page_info() -> dict:
             fecha_pub = datetime.strptime(fecha_pub, "%d/%m/%Y %H:%M").strftime("%d/%m/%Y %H:%M")
         except:
             print(f"Error formateando la fecha {fecha_pub} de la op:\n{uri}")
-            fecha_pub = False
+            fecha_pub = today
 
     anuncio = {'cod_exp':cod_exp, 'num_proc':num_proc}
 
@@ -308,7 +312,7 @@ def get_page_info() -> dict:
             'entidad_fed':entidad_fed, 'anio_ej':anio_ej, 'proc_exc':proc_exc, 'fecha_pub':fecha_pub, 
             'claves_list':claves_list, 'part_testigo':part_testigo, 'abastecimiento_sim':abastecimiento_sim, 
             'plurianual':plurianual, 'tipo_cont':tipo_cont, 'anticipo':anticipo, 'forma_pago':forma_pago, 
-            'plazo_garant':plazo_garant, 'meses_garant':meses_garant, 'caracter':caracter, 'caso_fort ':caso_fort , 
+            'plazo_garant':plazo_garant, 'meses_garant':meses_garant,'garant_cump':garant_cump, 'caracter':caracter, 'caso_fort ':caso_fort , 
             'tipo_cont_abierto':tipo_cont_abierto, 'uri':uri, 'scrapped_day':today
         }
 
@@ -319,17 +323,17 @@ def scrape_page():
 
     rows = driver.find_elements(By.XPATH, '//td[@class="p-link2"]')
     ops_found = len(rows)
-    print(f"  se encontraron {ops_found} oportunidades en está página")
+    print(f"se encontraron {ops_found} oportunidades en está página")
     for i in range(0, ops_found):
         rows = driver.find_elements(By.XPATH, '//td[@class="p-link2"]')
         n_proc = rows[i].text
         if procedimientos_guardados['num_proc'].str.contains(n_proc).any():
-            print(f"procedimiento: {n_proc} ya está en la bdd")
+            print(f"\nprocedimiento: {n_proc} ya está en la bdd")
             continue
         rows[i].click()
         espera_carga_componenete()
 
-        print(f"  Extrayendo inf anuncio {i}")
+        print(f"\nExtrayendo información del anuncio {n_proc}")
         new_row = get_page_info()
 
         if not new_row['cod_exp'] or not new_row['num_proc'] or not new_row['fecha_pub']:
@@ -337,11 +341,10 @@ def scrape_page():
             print(f"codigo de expediente: {new_row['cod_exp']}")
             print(f"numero de exp: {new_row['num_proc']}")
             print(f"fecha publicación: {new_row['fecha_pub']}")
-            continue
-        
-        df = pd.DataFrame([new_row])
-        df.to_csv(conc_file_name, index=False, header=False, encoding='utf-8', mode='a')
-        print("  Se extrajo y guardó información de anuncio de manera correcta.")
+        else:
+            df = pd.DataFrame([new_row])
+            df.to_csv(conc_file_name, index=False, header=False, encoding='utf-8', mode='a')
+            print("  SE EXTRAJO Y GUARDÓ INFORMACIÓN.")
 
         driver.back()
         espera_carga_componenete()
@@ -350,7 +353,8 @@ def scrape_page():
 def paginate():
     global driver, main_url, gobernanza
 
-    print(f"Entrando a la pagina principal: {main_url}")
+    print(f"------------------------------------------------\
+        Entrando a la pagina principal: {main_url}")
     driver.get(main_url)
     espera_carga_componenete()
 
