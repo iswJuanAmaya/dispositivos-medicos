@@ -1,6 +1,19 @@
 import pandas as pd
 
 #CUIDADO ESTO ES PARA REFERENCIA, EJECUTAR ESTE SCRIPT PUEDE BORRAR ARCHIVOS YA CON INFORMACIÓN.
+df = pd.DataFrame(columns=["Clave compendio","Clave Cucop","Descripción detallada","Codigo del expediente","Número del procedimiento o contratación",
+        "Dependencia","Número Unidad Compradora","Nombre Unidad Compradora","Fecha y hora de la publicación","Año del ejercicio presupuestal",
+        "Clave partidas","Proveedor","Número de contrato","Fecha de inicio","Fecha de fin","Importe Unitario sin Impuestos","Total Sin IVA",
+        "Total con IVA","uri","scrapped_day"])
+df.to_csv('precios.csv', index=False, encoding='utf-8', header=True)
+del df
+
+df = pd.DataFrame(columns=["Clave compendio", "Codigo del expediente","Número del procedimiento o contratación",
+                           "Partida específica","Clave CUCoP+","Descripción CUCoP+","Descripción detallada",
+                           "Unidad de medida","Cantidad solicitada","uri","scrapped_day"])
+df.to_csv('economicos.csv', index=False, encoding='utf-8', header=True)
+del df
+
 
 #crea el layout del csv de oportunidades
 df = pd.DataFrame(columns=['cod_exp','num_proc','dependencia','unidad_comp','correo','nombre_procedimiento',
@@ -11,8 +24,9 @@ df.to_csv('concluidos.csv', index=False, encoding='utf-8', header=True)
 del df
 
 #crea el csv con el layout final de 
-df = pd.DataFrame(columns=['cod_exp','num_proc','anexo','scrapped_day'])
-df.to_csv('anexos.csv', index=False, encoding='utf-8', header=True)
+# df = pd.DataFrame(columns=['cod_exp','num_proc','anexo','scrapped_day'])
+# df.to_csv('anexos.csv', index=False, encoding='utf-8', header=True)
+
 
 """
 'cod_exp','num_proc','dependencia','unidad_comp','correo','nombre_procedimiento',
