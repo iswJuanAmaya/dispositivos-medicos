@@ -121,6 +121,7 @@ def set_driver():
     options.add_experimental_option("useAutomationExtension", False)
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     #options.add_argument("--headless")
+    options.add_argument("--incognito")
     options.add_argument("--window-size=1024,768")
     options.add_argument("--no-sandbox")
     options.add_argument("start-maximized")
@@ -349,8 +350,8 @@ def get_page_prices():
     dependencia = get_text_by_xpath(xp='//label[text()="Dependencia o Entidad:"]/following-sibling::label')
     #Unidad Compradora (SOLO CÓDIGO IDENTIDICADOR)
     unidad_comp = get_text_by_xpath(xp='//label[text()="Unidad compradora"]/following-sibling::label')
-    num_uc = unidad_comp.split(" ")[0]
-    nom_uc = unidad_comp.split(" ")[1]
+    num_uc = unidad_comp.split(" ", 1)[0]
+    nom_uc = unidad_comp.split(" ", 1)[1]
     # Año del ejercicio presupuestal
     anio_ej = get_text_by_xpath(xp='//label[text()="Año del ejercicio presupuestal:"]/following-sibling::label')
 
@@ -416,7 +417,8 @@ def get_page_prices():
             subtotal = col[4].text
             total = col[7].text 
 
-            clave_compendio = [i['Clave compendio'] for i in economicos_list if clave_cucop in i["Clave CUCoP+"]]
+            claves_compendio = [i['Clave compendio'] for i in economicos_list if clave_cucop in i["Clave CUCoP+"]]
+            clave_compendio = claves_compendio[0].replace(" ",".") if len(claves_compendio)>0 else ""
 
             datos_relevantes_cont.append({
                 "Clave compendio":clave_compendio, "Clave Cucop":clave_cucop, "Descripción detallada":desc_det,
