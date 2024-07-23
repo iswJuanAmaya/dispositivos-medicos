@@ -24,7 +24,7 @@ df = pd.DataFrame(columns=['cod_exp','num_proc','dependencia','unidad_comp','cor
 df.to_csv('concluidos.csv', index=False, encoding='utf-8', header=True)
 del df
 
-#crea el csv con el layout final de 
+#crea el csv con el layout final de ANEXOS
 # df = pd.DataFrame(columns=['cod_exp','num_proc','anexo','scrapped_day'])
 # df.to_csv('anexos.csv', index=False, encoding='utf-8', header=True)
 
