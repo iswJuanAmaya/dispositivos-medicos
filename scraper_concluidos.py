@@ -7,6 +7,7 @@ from selenium.common.exceptions import TimeoutException, ElementClickIntercepted
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from datetime import date, datetime
+from colorama import Fore
 import time
 import os
 import time
@@ -122,17 +123,20 @@ def set_driver():
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     #options.add_argument("--headless")
     options.add_argument("--incognito")
-    options.add_argument("--window-size=1024,768")
+    options.add_argument("--window-size=1920, 1080")
     options.add_argument("--no-sandbox")
     options.add_argument("start-maximized")
     options.add_argument("--disable-infobars")
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-dev-shm-usage")
 
-
+    executable_path = ChromeDriverManager().install()
+    executable_path = executable_path.replace("THIRD_PARTY_NOTICES.chromedriver", "chromedriver.exe")
     driver = webdriver.Chrome(options=options,
-                service=Service(executable_path=ChromeDriverManager().install()),
+                service=Service(executable_path=executable_path),
             )
+
+    print("driver correctamente inicializado.")
 
 
 def load_csv(file_name:str) -> pd.DataFrame:
@@ -140,7 +144,7 @@ def load_csv(file_name:str) -> pd.DataFrame:
     return pd.read_csv(file_name, encoding='utf-8')
 
 
-def espera_carga_componenete(a:int=5, b:int=120):
+def espera_carga_componenete(a:int=5, b:int=180):
     "Espera que aparezca y desaparezca el loading... de la página."
     global driver
     try:
@@ -359,6 +363,36 @@ def get_text_from_column(columns, indice:int, required:bool=False):
 def get_page_prices():
     global driver, anuncio, today
     
+    #Esto debido a que a veces economicos no cargaba, y aveces trae un layout distinto
+    
+    xp_1 = '//th[text()="Descripción CUCoP+"]/ancestor::div[contains(@class,"header")]/following-sibling::div/table//tr'
+    xp_2 = '//th[text()="Descripción CUCoP+"]/ancestor::thead/following-sibling::tbody/tr'
+    xp_economicos = xp_1
+    economicos = driver.find_elements(By.XPATH, xp_1)
+    iterations = 0
+    if len(economicos)<1:
+        print(Fore.YELLOW + '  No cargaron economicos, se esperará')
+        while True:
+            economicos = driver.find_elements(By.XPATH, xp_2)
+            if len(economicos)>0:
+                xp_economicos = xp_2
+                print(Fore.YELLOW + f"   economicos tipo 2")
+                break
+
+            duerme(3)
+
+            economicos = driver.find_elements(By.XPATH, xp_1)
+            if len(economicos)>0:
+                xp_economicos = xp_1
+                break
+            
+            iterations += 1
+            if iterations>10:
+                print(Fore.YELLOW + '   No cargaron.')
+                break
+
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    duerme(.7, 1.5)
     #oportunnity url
     uri = driver.current_url
     #Código del expediente
@@ -369,6 +403,8 @@ def get_page_prices():
     dependencia = get_text_by_xpath(xp='//label[text()="Dependencia o Entidad:"]/following-sibling::label')
     # Año del ejercicio presupuestal
     anio_ej = get_text_by_xpath(xp='//label[text()="Año del ejercicio presupuestal:"]/following-sibling::label')
+    # Lista de Claves
+    claves_list = get_text_by_xpath(xp='//th[text()="Clave"]/ancestor::thead/following-sibling::tbody/tr/td[1]', join=True)
     #Unidad Compradora (SOLO CÓDIGO IDENTIDICADOR)
     unidad_comp = get_text_by_xpath(xp='//label[text()="Unidad compradora"]/following-sibling::label')
     try:
@@ -390,8 +426,7 @@ def get_page_prices():
     # --ECONOMICOS--
     print("  Obteniendo economicos")
     economicos_list = []
-    xp = '//th[text()="Descripción CUCoP+"]/ancestor::div[contains(@class,"header")]/following-sibling::div/table//tr'
-    economicos = driver.find_elements(By.XPATH, xp)
+    economicos = driver.find_elements(By.XPATH, xp_economicos)
     for row_economic in economicos:
         col = row_economic.find_elements(By.XPATH,"./td")
         partida_esp = col[1].text
@@ -399,9 +434,9 @@ def get_page_prices():
         desc_cucop = col[3].text
         desc_det = col[4].text
         unidades_medida = col[5].text
-        cantidad_solicitada = col[6].text
+        cantidad_solicitada = col[6].text if len(col)>6 else ""
         claves_compendio = re.findall(r"\d{3,4}.{1}\d{3,4}.{1}\d{3,4}.?\d{0,2}", desc_cucop)#CUCOP
-        clave_compendio = claves_compendio[0].replace(" ",".") if len(claves_compendio)>0 else ""
+        clave_compendio = claves_compendio[0].strip().replace(" ",".") if len(claves_compendio)>0 else ""
         
         economicos_list.append({
             "Clave compendio":clave_compendio, "Codigo del expediente":cod_exp, "Número del procedimiento o contratación":num_proc,
@@ -411,6 +446,7 @@ def get_page_prices():
         })
     
     # --DATOS RELEVANTES DE CONTRATO - PRECIOS--
+    print("  Obteniendo precios")
     datos_relevantes_cont = []
     xp = '//th[text()="Número de contrato"]/ancestor::div[contains(@class,"header")]/following-sibling::div/table//tr'
     datos_cont_rows = driver.find_elements(By.XPATH, xp )
@@ -428,7 +464,8 @@ def get_page_prices():
             xp = '//*[contains(text(),"Código de contrato: ")]/parent::label/following-sibling::p-table'
             WebDriverWait(driver, 120).until(EC.visibility_of_element_located((By.XPATH, xp)))
         except TimeoutException:
-            raise Exception(f"no cargó {num_cont}")
+            print(Fore.YELLOW + f"no cargó {num_cont}")
+            continue
 
         #Obtiene las filas de la tabla de detalle(cada fila se dividide en dos columnas grandotas)
         detalles = driver.find_elements(By.XPATH, 
@@ -440,11 +477,21 @@ def get_page_prices():
             clave_cucop = col[1].text
 
             col = detalle.find_elements(By.XPATH,"./td")
-            desc_det = col[0].text
-            prec_unit_sin_impuestos = col[3].text
-            subtotal = col[4].text
-            total = col[7].text 
-
+            try:
+                desc_det = col[0].text
+                prec_unit_sin_impuestos = col[3].text
+                subtotal = col[4].text
+                total = col[7].text 
+            except IndexError:
+                columnas_anormales = driver.find_elements(By.XPATH, 
+                    '//*[contains(text(),"Código de contrato: ")]/parent::label/following-sibling::p-table//div[contains(@class,"unfrozen")]//thead/tr/th')
+                anormal_columns = ",".join([c.text for c in columnas_anormales])
+                dependencia = "Error::: " + anormal_columns
+                desc_det = ""
+                prec_unit_sin_impuestos = ""
+                subtotal = ""
+                total = ""
+            
             claves_compendio = [i['Clave compendio'] for i in economicos_list if clave_cucop in i["Clave CUCoP+"]]
             clave_compendio = claves_compendio[0].replace(" ",".") if len(claves_compendio)>0 else ""
 
@@ -453,7 +500,7 @@ def get_page_prices():
                 "Codigo del expediente":cod_exp,"Número del procedimiento o contratación":num_proc,
                 "Dependencia":dependencia,"Número Unidad Compradora":num_uc,"Nombre Unidad Compradora":nom_uc,
                 "Fecha y hora de la publicación":fecha_pub,"Año del ejercicio presupuestal":anio_ej,
-                "Clave partidas":"OJO AQUI","Proveedor":proveedor,"Número de contrato":num_cont,"Fecha de inicio":fecha_ini,
+                "Clave partidas":claves_list,"Proveedor":proveedor,"Número de contrato":num_cont,"Fecha de inicio":fecha_ini,
                 "Fecha de fin":fecha_fin, "Importe Unitario sin Impuestos":prec_unit_sin_impuestos,
                 "Total Sin IVA":subtotal, "Total con IVA":total,"uri":uri,"scrapped_day":today
             })
@@ -468,7 +515,7 @@ def get_page_prices():
 def scrape_page(page_numb):
     "Itera todos los renglones del landing page"
     global driver,  gobernanza, conc_file_name, procedimientos_guardados,\
-        economicos_file_name, precios_file_name
+        economicos_file_name, precios_file_name, num_proc_added, rows_aded
 
     # Itera filas del landing page
     rows = driver.find_elements(By.XPATH, '//td[@class="p-link2"]')
@@ -486,7 +533,7 @@ def scrape_page(page_numb):
         rows = driver.find_elements(By.XPATH, '//td[@class="p-link2"]')
         n_proc = rows[i].text
 
-        if procedimientos_guardados['num_proc'].str.contains(n_proc).any():
+        if procedimientos_guardados['num_proc'].str.contains(n_proc).any() or n_proc in num_proc_added:
             print(f"\nprocedimiento:{i} - {n_proc} ya está en la bdd")
             continue
 
@@ -495,37 +542,49 @@ def scrape_page(page_numb):
         espera_carga_componenete()
         
         print(f"\nExtrayendo información del anuncio {i} - {n_proc}")
-        
-        #Extrae informacion de Economicos.csv y Precios.csv
-        try:
-            economic_list, datos_relevantes_cont = get_page_prices()
-            df = pd.DataFrame(economic_list)
-            df.to_csv(economicos_file_name, index=False, header=False, encoding='utf-8', mode='a')
-            print("  SE EXTRAJO Y GUARDÓ INFORMACIÓN DE ECONOMICOS.")
-            df = pd.DataFrame(datos_relevantes_cont)
-            df.to_csv(precios_file_name, index=False, header=False, encoding='utf-8', mode='a')
-            print("  SE EXTRAJO Y GUARDÓ INFORMACIÓN DE PRECIOS.")
-        except Exception as e:
-            print(f"  error: {e}")
-            driver.save_screenshot(f"./{str(page_numb)}_{i}_error.png")
-            driver.back()
-            espera_carga_componenete()
-            continue
-        
 
         # Extrae información de concluidos.csv
         new_row = get_page_info()
+
+        #Extrae informacion de Economicos.csv y Precios.csv
+        try:
+            economic_list, datos_relevantes_cont = get_page_prices()
+        except Exception as e:
+            print(f"  error: {e}")
+            new_row['dependencia'] = e[0:55]
+            driver.save_screenshot(f"./{str(page_numb)}_{i}_error.png")
+
         if not new_row['cod_exp'] or not new_row['num_proc']:
             print(f"Error recuperando informacón básica del anuncio: {new_row['uri']}") 
             print(f"codigo de expediente: {new_row['cod_exp']}")
             print(f"numero de exp: {new_row['num_proc']}")
+            driver.save_screenshot(f"./{str(page_numb)}_{i}_error.png")
         else:
             df = pd.DataFrame([new_row])
             df.to_csv(conc_file_name, index=False, header=False, encoding='utf-8', mode='a')
-            print("  SE EXTRAJO Y GUARDÓ INFORMACIÓN GENERAL.")
+
+            if economic_list:
+                df = pd.DataFrame(economic_list)
+                df.to_csv(economicos_file_name, index=False, header=False, encoding='utf-8', mode='a')
+                print("  SE EXTRAJO Y GUARDÓ INFORMACIÓN DE ECONOMICOS.")
+            else:
+                print("  ", economic_list)
+
+            if datos_relevantes_cont:                
+                df = pd.DataFrame(datos_relevantes_cont)
+                df.to_csv(precios_file_name, index=False, header=False, encoding='utf-8', mode='a')
+                print("  SE EXTRAJO Y GUARDÓ INFORMACIÓN DE PRECIOS.")
+            else:
+                print("  ", datos_relevantes_cont)
+                
+            num_proc_added.append(new_row['num_proc'])
+            rows_aded += 1
 
         driver.back()
         espera_carga_componenete()
+
+        if rows_aded > gobernanza:
+            raise Exception("Se alcanzo el númeor máximo de oportunidades por ejecución.")
 
 
 def paginate():
@@ -534,6 +593,7 @@ def paginate():
     print(f"Entrando a la pagina principal: {main_url}")
     driver.get(main_url)
     espera_carga_componenete()
+    driver.execute_script("document.body.style.zoom='80%'")
 
     print("\nAnuncios concluidos")
     click('//*[text()="Anuncios concluidos"]', dormir=False)
@@ -566,13 +626,14 @@ def main():
     """
     global main_url, today, driver, anexos_dir,anuncio, gobernanza, claves, conc_file_name,\
            rows_aded, procedimientos_guardados, economicos_file_name, precios_file_name,\
-            anexos_full_dir, anexos_file_name
+            anexos_full_dir, anexos_file_name, num_proc_added
     
+    num_proc_added = []
     anuncio = {} #Sirve para anexos
     anexos_full_dir = r"C:\Users\juan-\Desktop\CNET Scrapping 2024\temp\\"
 
     rows_aded = 0
-    gobernanza = 120
+    gobernanza = 220
     today = date.today().strftime("%d/%m/%Y")
     conc_file_name = './concluidos.csv'
     anexos_file_name = './anexos.csv'
@@ -583,7 +644,7 @@ def main():
     main_url = 'https://upcp-compranet.hacienda.gob.mx/sitiopublico/#/'
     
     claves = ["25401","25301","25501","32401","53101","53201"]
-    claves = ["53201"]#Para ahorrar tiempo en pruebas !Borrar!
+    claves = ["25501"]#Para ahorrar tiempo en pruebas !Borrar!
     
     print("\nCargando el dataset de oportunidades guardadas...")
     procedimientos_guardados = pd.read_csv(conc_file_name, usecols = ['num_proc'])
@@ -597,15 +658,15 @@ def main():
 
 if __name__ == "__main__":
     print(datetime.today().strftime("%d/%m/%Y %H:%M:%S"))
-    main()
-    print(datetime.today().strftime("%d/%m/%Y %H:%M:%S"))
-    driver.close()
-    #try:
-    #    main()
-    #    driver.close()
-    #except Exception as e:
-    #    print(datetime.today().strftime("%d/%m/%Y %H:%M:%S"))
-    #    print(f"error: {e}")
-    #    if driver:
-    #        driver.save_screenshot("./error.png")
-    #        driver.close()
+    #main()
+    #print(datetime.today().strftime("%d/%m/%Y %H:%M:%S"))
+    #driver.close()
+    try:
+        main()
+        driver.close()
+    except Exception as e:
+        print(datetime.today().strftime("%d/%m/%Y %H:%M:%S"))
+        print(f"error: {e}")
+        if driver:
+            driver.save_screenshot("./MAIN_error.png")
+            driver.close()
