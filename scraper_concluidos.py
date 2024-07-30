@@ -166,7 +166,8 @@ def click(xp:str, dormir:bool=True):
 
     element = driver.find_element(By.XPATH, xp)
     ActionChains(driver).scroll_to_element(element)\
-        .move_to_element(element).pause(1).click().perform()
+        .move_to_element(element).pause(1).perform()
+    element.click()
 
     if dormir:
         duerme(2, 5)
@@ -528,8 +529,6 @@ def scrape_page(page_numb):
         ahí extrae la información de cada oportunidad, cuando termina
         vuelve al LP, y repite fila por fila.
         """
-        duerme(.5, 2)
-
         rows = driver.find_elements(By.XPATH, '//td[@class="p-link2"]')
         n_proc = rows[i].text
 
@@ -585,6 +584,8 @@ def scrape_page(page_numb):
 
         if rows_aded > gobernanza:
             raise Exception("Se alcanzo el númeor máximo de oportunidades por ejecución.")
+        
+        duerme(.5, 2)
 
 
 def paginate():
@@ -593,7 +594,6 @@ def paginate():
     print(f"Entrando a la pagina principal: {main_url}")
     driver.get(main_url)
     espera_carga_componenete()
-    driver.execute_script("document.body.style.zoom='80%'")
 
     print("\nAnuncios concluidos")
     click('//*[text()="Anuncios concluidos"]', dormir=False)
@@ -644,7 +644,7 @@ def main():
     main_url = 'https://upcp-compranet.hacienda.gob.mx/sitiopublico/#/'
     
     claves = ["25401","25301","25501","32401","53101","53201"]
-    claves = ["25501"]#Para ahorrar tiempo en pruebas !Borrar!
+    #claves = ["25401"]#Para ahorrar tiempo en pruebas !Borrar!
     
     print("\nCargando el dataset de oportunidades guardadas...")
     procedimientos_guardados = pd.read_csv(conc_file_name, usecols = ['num_proc'])
@@ -658,15 +658,19 @@ def main():
 
 if __name__ == "__main__":
     print(datetime.today().strftime("%d/%m/%Y %H:%M:%S"))
-    #main()
-    #print(datetime.today().strftime("%d/%m/%Y %H:%M:%S"))
-    #driver.close()
-    try:
+
+    prueba = True
+    if prueba:
         main()
-        driver.close()
-    except Exception as e:
         print(datetime.today().strftime("%d/%m/%Y %H:%M:%S"))
-        print(f"error: {e}")
-        if driver:
-            driver.save_screenshot("./MAIN_error.png")
+        driver.close()
+    else:
+        try:
+            main()
             driver.close()
+        except Exception as e:
+            print(datetime.today().strftime("%d/%m/%Y %H:%M:%S"))
+            print(f"error: {e}")
+            if driver:
+                driver.save_screenshot("./MAIN_error.png")
+                driver.close()
