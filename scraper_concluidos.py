@@ -122,7 +122,7 @@ def set_driver():
     options.add_experimental_option("useAutomationExtension", False)
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     #options.add_argument("--headless")
-    options.add_argument("--incognito")
+    #options.add_argument("--incognito")
     options.add_argument("--window-size=1920, 1080")
     options.add_argument("--no-sandbox")
     options.add_argument("start-maximized")
@@ -372,12 +372,12 @@ def get_page_prices():
     economicos = driver.find_elements(By.XPATH, xp_1)
     iterations = 0
     if len(economicos)<1:
-        print(Fore.YELLOW + '  No cargaron economicos, se esperará')
+        print('  No cargaron economicos, se esperará')
         while True:
             economicos = driver.find_elements(By.XPATH, xp_2)
             if len(economicos)>0:
                 xp_economicos = xp_2
-                print(Fore.YELLOW + f"   economicos tipo 2")
+                print(f"   economicos tipo 2")
                 break
 
             duerme(3)
@@ -389,7 +389,7 @@ def get_page_prices():
             
             iterations += 1
             if iterations>10:
-                print(Fore.YELLOW + '   No cargaron.')
+                print('   No cargaron.')
                 break
 
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -465,7 +465,7 @@ def get_page_prices():
             xp = '//*[contains(text(),"Código de contrato: ")]/parent::label/following-sibling::p-table'
             WebDriverWait(driver, 120).until(EC.visibility_of_element_located((By.XPATH, xp)))
         except TimeoutException:
-            print(Fore.YELLOW + f"no cargó {num_cont}")
+            print(f"no cargó {num_cont}")
             continue
 
         #Obtiene las filas de la tabla de detalle(cada fila se dividide en dos columnas grandotas)
@@ -550,7 +550,7 @@ def scrape_page(page_numb):
             economic_list, datos_relevantes_cont = get_page_prices()
         except Exception as e:
             print(f"  error: {e}")
-            new_row['dependencia'] = e[0:55]
+            new_row['dependencia'] = "Error:::"
             driver.save_screenshot(f"./{str(page_numb)}_{i}_error.png")
 
         if not new_row['cod_exp'] or not new_row['num_proc']:
