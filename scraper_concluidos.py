@@ -17,6 +17,7 @@ import pandas as pd
 import re
 
 def timing_val(func):
+    """Decorador para medir el tiempo que tarda una función en ejecturse."""
     def wrapper(*arg, **kw):
         t1 = time.time()
         func(*arg, **kw)
@@ -129,13 +130,15 @@ def set_driver():
     options.add_argument("--disable-infobars")
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-dev-shm-usage")
-
+    
+    #Se metio un error debido a la deshabilitación de cookies de 3ros en chrome.
     executable_path = ChromeDriverManager().install()
     executable_path = executable_path.replace("THIRD_PARTY_NOTICES.chromedriver", "chromedriver.exe")
+
+    #Dispara chrome
     driver = webdriver.Chrome(options=options,
                 service=Service(executable_path=executable_path),
             )
-
     print("driver correctamente inicializado.")
 
 
@@ -174,6 +177,9 @@ def click(xp:str, dormir:bool=True):
 
 
 def fill(xp:str, txt:str):
+    """Encuentra un input por xpath, lo rellena
+    letra por letra con el txt recibido, esto para 
+    asemejar un comortamiento más humano"""
     global driver
     element = driver.find_element(By.XPATH, xp)
     for letter in txt:
@@ -196,6 +202,7 @@ def persist_click():
 
 
 def set_filters():
+    """Setea los filtros del landing page"""
     global claves
     print("-> proceso: PROCEDIMIENTO DE CONTRATACIÓN")
     click('//*[@name="proceso"]')
@@ -210,6 +217,8 @@ def set_filters():
     try:
         click('//*[text()="ADQUISICIONES"]')
     except:
+        """Esto debido a que este filtro a veces no cargaba, con el fin de no interrumpir
+        el robor espera y reintenta"""
         persist_click()
 
     print("más filtros")
@@ -234,6 +243,12 @@ def set_filters():
 
 
 def get_text_by_xpath(xp:str, required:bool=False, join:bool=False):
+    """Dado un xpath extrae el texto y lo retorna
+    en caso de fallar se retorna un string vacio, 
+    a menos que sea un campo requerido,en cuyo caso retorna false
+    
+    si join es enviado todo el texto encontrado en el xpath
+    se concatena separado por una coma. """
     try:
         if not join:
             txt = driver.find_element(By.XPATH, xp).text
@@ -274,6 +289,7 @@ def extraer_anexos():
 
 
 def get_page_info() -> dict:
+    """Extrae la información general del anuncio y lo guarda en concluidos"""
     global driver, anuncio, today
 
     #oportunnity url
@@ -350,6 +366,7 @@ def get_page_info() -> dict:
 
 
 def get_text_from_column(columns, indice:int, required:bool=False):
+    """De prueba no se ejecutó"""
     try:
         txt = columns[indice].text.strip()
         return txt
@@ -362,10 +379,10 @@ def get_text_from_column(columns, indice:int, required:bool=False):
 
 
 def get_page_prices():
+    """Extrae información de economicos y precios"""
     global driver, anuncio, today
     
     #Esto debido a que a veces economicos no cargaba, y aveces trae un layout distinto
-    
     xp_1 = '//th[text()="Descripción CUCoP+"]/ancestor::div[contains(@class,"header")]/following-sibling::div/table//tr'
     xp_2 = '//th[text()="Descripción CUCoP+"]/ancestor::thead/following-sibling::tbody/tr'
     xp_economicos = xp_1
@@ -435,7 +452,9 @@ def get_page_prices():
         desc_cucop = col[3].text
         desc_det = col[4].text
         unidades_medida = col[5].text
+        #Esta columna algunas pocas veces no viene
         cantidad_solicitada = col[6].text if len(col)>6 else ""
+        #Busca un patron de 3 o 4 digitos, punto, 3 o 4 digitos, punto,3 o 4 digitos, y desues otros 2 digitos opcionales
         claves_compendio = re.findall(r"\d{3,4}.{1}\d{3,4}.{1}\d{3,4}.?\d{0,2}", desc_cucop)#CUCOP
         clave_compendio = claves_compendio[0].strip().replace(" ",".") if len(claves_compendio)>0 else ""
         
@@ -452,6 +471,9 @@ def get_page_prices():
     xp = '//th[text()="Número de contrato"]/ancestor::div[contains(@class,"header")]/following-sibling::div/table//tr'
     datos_cont_rows = driver.find_elements(By.XPATH, xp )
     for dato in datos_cont_rows:
+        """Itera los datos relevantes del contraro, extrae su información,
+        da click en el numero de contraro para abrir el popup con la información 
+        desglosada y fila por fila extrae su información."""
         col = dato.find_elements(By.XPATH,"./td")
         proveedor = col[1].text
         num_cont = col[2].text
@@ -461,6 +483,8 @@ def get_page_prices():
         
         ActionChains(driver).scroll_to_element(col[2]).move_to_element(col[2])\
                             .pause(1).click().perform()
+        
+        #Esto porque la página a veces deja de cargar o tarda demasiado
         try:
             xp = '//*[contains(text(),"Código de contrato: ")]/parent::label/following-sibling::p-table'
             WebDriverWait(driver, 120).until(EC.visibility_of_element_located((By.XPATH, xp)))
@@ -483,7 +507,9 @@ def get_page_prices():
                 prec_unit_sin_impuestos = col[3].text
                 subtotal = col[4].text
                 total = col[7].text 
-            except IndexError:
+            except IndexError: 
+                """Esto detecta layouts diferentes, este layout se guarda en la columna Dependencia de concluidos
+                   para poder definir una solución en el futuro."""
                 columnas_anormales = driver.find_elements(By.XPATH, 
                     '//*[contains(text(),"Código de contrato: ")]/parent::label/following-sibling::p-table//div[contains(@class,"unfrozen")]//thead/tr/th')
                 anormal_columns = ",".join([c.text for c in columnas_anormales])
@@ -493,6 +519,7 @@ def get_page_prices():
                 subtotal = ""
                 total = ""
             
+            #Busca la clave compendio en economicos, se relaciona por clave cucop. 
             claves_compendio = [i['Clave compendio'] for i in economicos_list if clave_cucop in i["Clave CUCoP+"]]
             clave_compendio = claves_compendio[0].replace(" ",".") if len(claves_compendio)>0 else ""
 
@@ -514,11 +541,13 @@ def get_page_prices():
 
 @timing_val
 def scrape_page(page_numb):
-    "Itera todos los renglones del landing page"
+    """Itera todos los renglones del landing page,
+    uno por uno da click en el para extraer su informacion
+    y guardarla en la bdd"""
     global driver,  gobernanza, conc_file_name, procedimientos_guardados,\
         economicos_file_name, precios_file_name, num_proc_added, rows_aded
 
-    # Itera filas del landing page
+    # Obtiene las filas del landing page
     rows = driver.find_elements(By.XPATH, '//td[@class="p-link2"]')
     ops_found = len(rows)
     print(f"se encontraron {ops_found} oportunidades en está página")
@@ -545,6 +574,12 @@ def scrape_page(page_numb):
         # Extrae información de concluidos.csv
         new_row = get_page_info()
 
+        """
+        Esto se tuvo que hacer debido a la inestabilidad y fallas que presenta
+        la página, si en la obtencion de precios o economicos falla, este error 
+        es guardado en el campo "dependencia", la idea es que podamos categorizar 
+        los errores que no pudieron ser detectados y tratados en el desarrollo del MVP
+        """
         #Extrae informacion de Economicos.csv y Precios.csv
         try:
             economic_list, datos_relevantes_cont = get_page_prices()
@@ -575,7 +610,8 @@ def scrape_page(page_numb):
                 print("  SE EXTRAJO Y GUARDÓ INFORMACIÓN DE PRECIOS.")
             else:
                 print("  ", datos_relevantes_cont)
-                
+            
+            #agrega el numero de procedimiento para evitar repetirlo.s
             num_proc_added.append(new_row['num_proc'])
             rows_aded += 1
 
@@ -589,6 +625,7 @@ def scrape_page(page_numb):
 
 
 def paginate():
+    """Itera las páginas disponibles una por una"""
     global driver, main_url, gobernanza
 
     print(f"Entrando a la pagina principal: {main_url}")
@@ -603,7 +640,12 @@ def paginate():
     set_filters()
     
     #PAGINACIÓN
-    for i in range(1, 10):
+    for i in range(1, 100):
+        """Itera las páginas de anuncios, por cada página de detalle
+        obtiene la información y la guarda en la bdd.
+        sigue iterando páginas mientras el botón de "siguiente página
+        siga disponible.
+        """
         print(f"\nObteniendo información pag {i}")
         scrape_page(i)
 
@@ -623,29 +665,33 @@ def paginate():
 
 def main():
     """
-    """
+    declara variables globales que se usan en diferentes funciones
+    carga identificadores unicos de la bdd para evitar raspar anuncios ya 
+    agregados, inicializa el driver(chrome) e inicia el proceso de páginacion"""
     global main_url, today, driver, anexos_dir,anuncio, gobernanza, claves, conc_file_name,\
            rows_aded, procedimientos_guardados, economicos_file_name, precios_file_name,\
             anexos_full_dir, anexos_file_name, num_proc_added
     
-    num_proc_added = []
+    num_proc_added = [] #guarda número de procedimiento de los anuncios agregados a la base de datos para evitar repeticiones
     anuncio = {} #Sirve para anexos
     anexos_full_dir = r"C:\Users\juan-\Desktop\CNET Scrapping 2024\temp\\"
-
-    rows_aded = 0
-    gobernanza = 220
-    today = date.today().strftime("%d/%m/%Y")
+    rows_aded = 0 #cantidad de anuncios agregados a la bdd
+    gobernanza = 220 #número máximo de anuncios a agregar por ejecución(la idea es evitar bloqueos permitiendo que el robot corra indefinidamente)
+    today = date.today().strftime("%d/%m/%Y") #fecha de ejecución 
+    
+    #nombre de las bases de datos
     conc_file_name = './concluidos.csv'
     anexos_file_name = './anexos.csv'
     economicos_file_name = './economicos.csv'
     precios_file_name = './precios.csv'
-    anexos_dir = './temp'
+
     
+    anexos_dir = './temp'#ruta donde se guardan los anexos
     main_url = 'https://upcp-compranet.hacienda.gob.mx/sitiopublico/#/'
     
     claves = ["25401","25301","25501","32401","53101","53201"]
-    #claves = ["25401"]#Para ahorrar tiempo en pruebas !Borrar!
     
+    #Carga los numeros de procedimiento para evitar repeticiones
     print("\nCargando el dataset de oportunidades guardadas...")
     procedimientos_guardados = pd.read_csv(conc_file_name, usecols = ['num_proc'])
 
@@ -657,19 +703,18 @@ def main():
 
 
 if __name__ == "__main__":
-    print(datetime.today().strftime("%d/%m/%Y %H:%M:%S"))
+    #FLAG para probar y mejorar detección de errores 
+    prueba = False
 
-    prueba = True
     if prueba:
         main()
-        print(datetime.today().strftime("%d/%m/%Y %H:%M:%S"))
         driver.close()
+
     else:
         try:
             main()
             driver.close()
         except Exception as e:
-            print(datetime.today().strftime("%d/%m/%Y %H:%M:%S"))
             print(f"error: {e}")
             if driver:
                 driver.save_screenshot("./MAIN_error.png")
