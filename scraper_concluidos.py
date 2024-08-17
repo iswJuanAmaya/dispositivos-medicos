@@ -440,30 +440,74 @@ def get_page_prices():
         except:
             print(f"Error formateando la fecha {fecha_pub} de la op:\n{uri}")
             fecha_pub = today
-        
+            
+            
     # --ECONOMICOS--
-    print("  Obteniendo economicos")
     economicos_list = []
-    economicos = driver.find_elements(By.XPATH, xp_economicos)
-    for row_economic in economicos:
-        col = row_economic.find_elements(By.XPATH,"./td")
-        partida_esp = col[1].text
-        clave_cucop = col[2].text
-        desc_cucop = col[3].text
-        desc_det = col[4].text
-        unidades_medida = col[5].text
-        #Esta columna algunas pocas veces no viene
-        cantidad_solicitada = col[6].text if len(col)>6 else ""
-        #Busca un patron de 3 o 4 digitos, punto, 3 o 4 digitos, punto,3 o 4 digitos, y desues otros 2 digitos opcionales
-        claves_compendio = re.findall(r"\d{3,4}.{1}\d{3,4}.{1}\d{3,4}.?\d{0,2}", desc_cucop)#CUCOP
-        clave_compendio = claves_compendio[0].strip().replace(" ",".") if len(claves_compendio)>0 else ""
-        
-        economicos_list.append({
-            "Clave compendio":clave_compendio, "Codigo del expediente":cod_exp, "Número del procedimiento o contratación":num_proc,
-            "Partida específica":partida_esp, "Clave CUCoP+":clave_cucop, "Descripción CUCoP+": desc_cucop, 
-            "Descripción detallada":desc_det, "Unidad de medida":unidades_medida, "Cantidad solicitada":cantidad_solicitada,
-            "uri":uri, "scrapped_day":today
-        })
+    economic_ids = []
+    #Itera páginas
+    for i in range(1, 11):
+        print(f"  Obteniendo economicos pag: {i}")
+        economicos = driver.find_elements(By.XPATH, xp_economicos)
+        numero = economicos[0].text.split(" ",1)[0]
+        #Itera filas de economicos
+        for row_economic in economicos:
+            col = row_economic.find_elements(By.XPATH,"./td")
+            _id = col[0].text
+            if _id in economic_ids:
+                print(f"economico {_id} está repetido por alguna extraña razón")
+            partida_esp = col[1].text
+            clave_cucop = col[2].text
+            desc_cucop = col[3].text
+            desc_det = col[4].text
+            unidades_medida = col[5].text
+            #Esta columna algunas pocas veces no viene
+            cantidad_solicitada = col[6].text if len(col)>6 else ""
+            #Busca un patron de 3 o 4 digitos, punto, 3 o 4 digitos, punto,3 o 4 digitos, y desues otros 2 digitos opcionales
+            claves_compendio = re.findall(r"\d{3,4}.{1}\d{3,4}.{1}\d{3,4}.?\d{0,2}", desc_cucop)#CUCOP
+            clave_compendio = claves_compendio[0].strip().replace(" ",".") if len(claves_compendio)>0 else ""
+            
+            economicos_list.append({
+                "Clave compendio":clave_compendio, "Codigo del expediente":cod_exp, "Número del procedimiento o contratación":num_proc,
+                "Partida específica":partida_esp, "Clave CUCoP+":clave_cucop, "Descripción CUCoP+": desc_cucop, 
+                "Descripción detallada":desc_det, "Unidad de medida":unidades_medida, "Cantidad solicitada":cantidad_solicitada,
+                "uri":uri, "scrapped_day":today
+            })
+        economic_ids.append(_id)
+
+        next_page_btn = driver.find_element(By.XPATH,'//span[text()="ECONÓMICOS"]/ancestor::p-tabview//button[contains(@class,"p-paginator-next")]')
+        if "p-disabled" in next_page_btn.get_attribute("class"):
+            print("  no hay más páginas disponibles")
+            break
+
+        for i in range(0, 10):
+            #Revisa si hay más paginas disponibles
+            next_page_btn = driver.find_element(By.XPATH,'//span[text()="ECONÓMICOS"]/ancestor::p-tabview//button[contains(@class,"p-paginator-next")]')
+            if "p-disabled" in next_page_btn.get_attribute("class"):
+                print("  no hay más páginas disponibles")
+                break
+
+            #Da click en next page
+            ActionChains(driver).scroll_to_element(next_page_btn)\
+                .pause(1).click(next_page_btn).perform()
+            
+            time.sleep(5)
+
+            #Espera nuevos economicos por un máximo de 60 segundos 
+            t_end = time.time() + 60
+            numero_nuevo = driver.find_elements(By.XPATH, xp_economicos)[0].text.split(" ",1)[0]
+            while time.time() < t_end and numero == numero_nuevo:
+                try:
+                    numero_nuevo = driver.find_elements(By.XPATH, xp_economicos)[0].text.split(" ",1)[0]
+                except:
+                    pass
+            
+            #Sí aparecieron nuevos economicos los recolecta...
+            if int(numero_nuevo) > int(numero):
+                break
+            else:# sí no aparecieron nuevos economicos en un minuto busca la siguiente página.
+                print("  no aparecieron nuevos economicos en un minuto")
+    
     
     # --DATOS RELEVANTES DE CONTRATO - PRECIOS--
     print("  Obteniendo precios")
