@@ -599,11 +599,11 @@ def get_page_prices():
             ind_tota = 6
             ind_subt = False
         else:
-            print_e("  layout modal por defecto")
-            ind_desc = 0
-            ind_prec = 3
-            ind_subt = 4
-            ind_tota = 7
+            print_e("  layout NO ESPERADO")
+            ind_desc = 10
+            ind_prec = 13
+            ind_subt = 14
+            ind_tota = 17
             ind_cant_minima = False
 
         #Obtiene las filas de la tabla de detalle(cada fila se dividide en dos columnas grandotas)
@@ -614,7 +614,7 @@ def get_page_prices():
         for clave, detalle in zip(detalles_p, detalles):
             col = clave.find_elements(By.XPATH,"./td")
             clave_cucop = col[1].text
-            
+
             col = detalle.find_elements(By.XPATH,"./td")
             try:
                 desc_det = col[ind_desc].text
