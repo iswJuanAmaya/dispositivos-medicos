@@ -1,4 +1,4 @@
-from selenium import webdriver
+from seleniumwire import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
@@ -109,6 +109,12 @@ def download_wait(timeout:int, nfiles:int=1):
         delete_files()
 
 
+def interceptor(request):
+    global actual_page
+    if "expedientes?rows" in request.url:
+        request.querystring = f'rows=100&page={actual_page}'
+
+
 def set_driver():
     """Initialize a webdriver to simulate chrome browser"""
     global driver, anexos_full_dir
@@ -122,6 +128,7 @@ def set_driver():
     options.add_experimental_option("prefs", prefs)
     options.add_experimental_option("useAutomationExtension", False)
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
     #options.add_argument("--headless")
     #options.add_argument("--incognito")
     options.add_argument("--window-size=1920, 1080")
@@ -139,6 +146,7 @@ def set_driver():
     driver = webdriver.Chrome(options=options,
                 service=Service(executable_path=executable_path),
             )
+    driver.request_interceptor = interceptor
     print("driver correctamente inicializado.")
 
 
@@ -378,6 +386,14 @@ def get_text_from_column(columns, indice:int, required:bool=False):
             return "falló"
 
 
+def print_e(msg):
+    print(Fore.RED+ msg +Fore.RESET)
+
+
+def print_w(msg):
+    print(Fore.YELLOW+ msg +Fore.RESET)
+
+
 def get_page_prices():
     """Extrae información de economicos y precios"""
     global driver, anuncio, today
@@ -440,8 +456,8 @@ def get_page_prices():
         except:
             print(f"Error formateando la fecha {fecha_pub} de la op:\n{uri}")
             fecha_pub = today
-            
-            
+        
+        
     # --ECONOMICOS--
     economicos_list = []
     economic_ids = []
@@ -508,9 +524,30 @@ def get_page_prices():
             else:# sí no aparecieron nuevos economicos en un minuto busca la siguiente página.
                 print("  no aparecieron nuevos economicos en un minuto")
     
-    
+
     # --DATOS RELEVANTES DE CONTRATO - PRECIOS--
     print("  Obteniendo precios")
+    xp = '//*[contains(text(),"DATOS RELEVANTES DEL CONTRATO")]/ancestor::ul/following-sibling::div//thead/tr/th'
+    try:
+        cabeceras = driver.find_elements(By.XPATH, xp)
+        if cabeceras[1].text == 'Licitante' and cabeceras[2].text == 'Número de contrato':
+            ind_prov = 1
+            ind_num_cont = 2
+            ind_fech_i = 5
+            ind_fech_f = 6
+        elif cabeceras[2].text == 'Licitante' and cabeceras[3].text == 'Número de contrato':
+            print_w("  layout tipo 2")
+            ind_prov = 2
+            ind_num_cont = 3
+            ind_fech_i = 6
+            ind_fech_f = 7
+    except Exception as e:
+        print_e(f"  falló obteniendo cabeceras de dato de contrato\n{e}")
+        ind_prov = 1
+        ind_num_cont = 2
+        ind_fech_i = 5
+        ind_fech_f = 6
+
     datos_relevantes_cont = []
     xp = '//th[text()="Número de contrato"]/ancestor::div[contains(@class,"header")]/following-sibling::div/table//tr'
     datos_cont_rows = driver.find_elements(By.XPATH, xp )
@@ -519,13 +556,13 @@ def get_page_prices():
         da click en el numero de contraro para abrir el popup con la información 
         desglosada y fila por fila extrae su información."""
         col = dato.find_elements(By.XPATH,"./td")
-        proveedor = col[1].text
-        num_cont = col[2].text
-        fecha_ini = col[5].text
-        fecha_fin = col[6].text
+        proveedor = col[ind_prov ].text
+        num_cont = col[ind_num_cont].text
+        fecha_ini = col[ind_fech_i].text
+        fecha_fin = col[ind_fech_f].text
         #titulo_cont = col[3].tex
         
-        ActionChains(driver).scroll_to_element(col[2]).move_to_element(col[2])\
+        ActionChains(driver).scroll_to_element(col[ind_num_cont]).move_to_element(col[ind_num_cont])\
                             .pause(1).click().perform()
         
         #Esto porque la página a veces deja de cargar o tarda demasiado
@@ -535,6 +572,39 @@ def get_page_prices():
         except TimeoutException:
             print(f"no cargó {num_cont}")
             continue
+        
+        xp = '//*[contains(text(),"Código de contrato: ")]/parent::label/following-sibling::p-table//div[contains(@class,"unfrozen")]//thead/tr/th'
+        cabeceras = driver.find_elements(By.XPATH, xp)
+        if cabeceras[0].text == 'Descripción detallada' and cabeceras[3].text == 'Precio unitario sin impuestos' and\
+        cabeceras[4].text == 'Subtotal' and cabeceras[7].text == 'Total':
+            ind_desc = 0
+            ind_prec = 3
+            ind_subt = 4
+            ind_tota = 7
+            ind_cant_minima = False
+        elif cabeceras[0].text == 'Descripción detallada' and cabeceras[2].text == 'Precio unitario sin impuestos' and\
+        cabeceras[3].text == 'Monto de la Oferta' and cabeceras[6].text == 'Monto total de la oferta':
+            print_w("  layout modal tipo 2")
+            ind_desc = 0
+            ind_prec = 2
+            ind_subt = 3
+            ind_tota = 6
+            ind_cant_minima = False
+        elif cabeceras[0].text == 'Descripción detallada' and cabeceras[4].text == 'Precio unitario sin impuestos' and\
+        cabeceras[5].text == 'Monto total cantidad mínima' and cabeceras[6].text == 'Monto total cantidad máxima':
+            print_w("  layout modal tipo 3 - cant minima")
+            ind_desc = 0
+            ind_prec = 4
+            ind_cant_minima = 5
+            ind_tota = 6
+            ind_subt = False
+        else:
+            print_e("  layout modal por defecto")
+            ind_desc = 0
+            ind_prec = 3
+            ind_subt = 4
+            ind_tota = 7
+            ind_cant_minima = False
 
         #Obtiene las filas de la tabla de detalle(cada fila se dividide en dos columnas grandotas)
         detalles = driver.find_elements(By.XPATH, 
@@ -544,16 +614,19 @@ def get_page_prices():
         for clave, detalle in zip(detalles_p, detalles):
             col = clave.find_elements(By.XPATH,"./td")
             clave_cucop = col[1].text
-
+            
             col = detalle.find_elements(By.XPATH,"./td")
             try:
-                desc_det = col[0].text
-                prec_unit_sin_impuestos = col[3].text
-                subtotal = col[4].text
-                total = col[7].text 
+                desc_det = col[ind_desc].text
+                prec_unit_sin_impuestos = col[ind_prec].text
+                subtotal = col[ind_subt].text if ind_subt else ""
+                total = col[ind_tota].text 
+                total_cant_min = col[ind_cant_minima].text if ind_cant_minima else ""
             except IndexError: 
                 """Esto detecta layouts diferentes, este layout se guarda en la columna Dependencia de concluidos
                    para poder definir una solución en el futuro."""
+                anormal_columns = ",".join([c.text for c in cabeceras])
+                print_e(anormal_columns)
                 columnas_anormales = driver.find_elements(By.XPATH, 
                     '//*[contains(text(),"Código de contrato: ")]/parent::label/following-sibling::p-table//div[contains(@class,"unfrozen")]//thead/tr/th')
                 anormal_columns = ",".join([c.text for c in columnas_anormales])
@@ -562,6 +635,7 @@ def get_page_prices():
                 prec_unit_sin_impuestos = ""
                 subtotal = ""
                 total = ""
+                total_cant_min = ""
             
             #Busca la clave compendio en economicos, se relaciona por clave cucop. 
             claves_compendio = [i['Clave compendio'] for i in economicos_list if clave_cucop in i["Clave CUCoP+"]]
@@ -574,7 +648,8 @@ def get_page_prices():
                 "Fecha y hora de la publicación":fecha_pub,"Año del ejercicio presupuestal":anio_ej,
                 "Clave partidas":claves_list,"Proveedor":proveedor,"Número de contrato":num_cont,"Fecha de inicio":fecha_ini,
                 "Fecha de fin":fecha_fin, "Importe Unitario sin Impuestos":prec_unit_sin_impuestos,
-                "Total Sin IVA":subtotal, "Total con IVA":total,"uri":uri,"scrapped_day":today
+                "Total Sin IVA":subtotal, "Total con IVA":total,"uri":uri,"scrapped_day":today, 
+                "total cantidad minima": total_cant_min
             })
 
         driver.find_element(By.XPATH,'//span[text()="Cerrar"]').click()
@@ -606,14 +681,14 @@ def scrape_page(page_numb):
         n_proc = rows[i].text
 
         if procedimientos_guardados['num_proc'].str.contains(n_proc).any() or n_proc in num_proc_added:
-            print(f"\nprocedimiento:{i} - {n_proc} ya está en la bdd")
+            print(f"\nprocedimiento:{i+1} - {n_proc} ya está en la bdd")
             continue
 
         # Entra a la página de detalle
         rows[i].click()
         espera_carga_componenete()
         
-        print(f"\nExtrayendo información del anuncio {i} - {n_proc}")
+        print(f"\nExtrayendo información del anuncio {i+1} - {n_proc}")
 
         # Extrae información de concluidos.csv
         new_row = get_page_info()
@@ -670,7 +745,7 @@ def scrape_page(page_numb):
 
 def paginate():
     """Itera las páginas disponibles una por una"""
-    global driver, main_url, gobernanza
+    global driver, main_url, gobernanza, actual_page
 
     print(f"Entrando a la pagina principal: {main_url}")
     driver.get(main_url)
@@ -684,6 +759,7 @@ def paginate():
     set_filters()
     
     #PAGINACIÓN
+    actual_page = 1
     for i in range(1, 100):
         """Itera las páginas de anuncios, por cada página de detalle
         obtiene la información y la guarda en la bdd.
@@ -699,12 +775,11 @@ def paginate():
             break
         else:
             print(f"Cambiando a página: {i+1}")
+            actual_page += 1
             ActionChains(driver).scroll_to_element(next_page_btn)\
                 .pause(1).click(next_page_btn).perform()
             espera_carga_componenete()
             duerme(2, 6)
-
-    driver.close()
 
 
 def main():
@@ -714,8 +789,9 @@ def main():
     agregados, inicializa el driver(chrome) e inicia el proceso de páginacion"""
     global main_url, today, driver, anexos_dir,anuncio, gobernanza, claves, conc_file_name,\
            rows_aded, procedimientos_guardados, economicos_file_name, precios_file_name,\
-            anexos_full_dir, anexos_file_name, num_proc_added
+           anexos_full_dir, anexos_file_name, num_proc_added, actual_page
     
+    actual_page = 1
     num_proc_added = [] #guarda número de procedimiento de los anuncios agregados a la base de datos para evitar repeticiones
     anuncio = {} #Sirve para anexos
     anexos_full_dir = r"C:\Users\juan-\Desktop\CNET Scrapping 2024\temp\\"
@@ -752,6 +828,7 @@ if __name__ == "__main__":
 
     if prueba:
         main()
+        driver.save_screenshot("./MAIN_error.png")
         driver.close()
 
     else:
