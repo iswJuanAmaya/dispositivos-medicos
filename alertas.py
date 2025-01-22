@@ -86,7 +86,7 @@ def generate_body(alerts_df:pd.DataFrame, msg:str)->str:
         fec_pres = df_group['fecha_presentacion'].iloc[0]
         fec_pub = df_group['fecha_pub'].iloc[0]
         detail_url = df_group['uri'].iloc[0]
-        ecos_cant = len(df_group)
+        #ecos_cant = len(df_group)
         
         html += f"{i}. <a href='{detail_url}'>{desc_det_an}</a><br>"
         html += f"<strong>Dependencia:</strong> {dependencia}<br>" if dependencia else ""
@@ -105,9 +105,9 @@ def generate_body(alerts_df:pd.DataFrame, msg:str)->str:
                     economicos.append(desc_detallada)
                 
 
-        for i, enunciado in enumerate(economicos):
+        for j, enunciado in enumerate(economicos):
             html += f"<li>{enunciado.lower()}</li>"
-            if i>9:
+            if j==9:
                 break
 
         html += "</ul>"
@@ -117,7 +117,7 @@ def generate_body(alerts_df:pd.DataFrame, msg:str)->str:
         </body>
         </html>
         """
-    
+    html = html.replace('replace_here', str((i-1)))
     return html
 
 
@@ -139,13 +139,7 @@ def generate_df_to_fill_body(df:pd.DataFrame, tipo:str) -> pd.DataFrame:
                              'uc','desc_det_anuncio','Dependencia','Número del procedimiento o contratación']]\
                             [(df['scrapped_day'] == today) ]
         
-        #selecciona las oportunidades escrapeadas hoy
-        nuevas_oportunidades = df\
-                                [
-                                    (df['scrapped_day'] == today)
-                                ]
-        
-        msg = f"{len(nuevas_alertas)} alertas encontradas con {len(nuevas_oportunidades)} requerimientos"
+        msg = f"replace_here alertas encontradas con {len(nuevas_alertas)} requerimientos"
         print(msg)
 
         return nuevas_alertas, msg
@@ -169,12 +163,7 @@ def generate_df_to_fill_body(df:pd.DataFrame, tipo:str) -> pd.DataFrame:
                              'uc','desc_det_anuncio','Dependencia','Número del procedimiento o contratación']]\
                             [(df['scrapped_day'].isin(fechas_semanales)) ]
         
-        #selecciona las oportunidades escrapeadas sabado, domingo y lunes 
-        nuevas_oportunidades = df[['Descripción detallada','uri','fecha_pub','fecha_presentacion',\
-                                    'uc','desc_det_anuncio','Dependencia','Número del procedimiento o contratación']]\
-                                [(df['scrapped_day'].isin(fechas_semanales))]
-        
-        msg = f"{len(nuevas_alertas)} alertas encontradas con {len(nuevas_oportunidades)} requerimientos"
+        msg = f"replace_here alertas encontradas con {len(nuevas_alertas)} requerimientos"
         print(msg)
         
         return nuevas_alertas, msg
@@ -194,12 +183,7 @@ def generate_df_to_fill_body(df:pd.DataFrame, tipo:str) -> pd.DataFrame:
                              'uc','desc_det_anuncio','Dependencia','Número del procedimiento o contratación']]\
                             [(df['scrapped_day'].isin(sab_dom_lun))]
         
-        #selecciona las oportunidades escrapeadas sabado, domingo y lunes 
-        nuevas_oportunidades = df[['Descripción detallada','uri','fecha_pub','fecha_presentacion',\
-                                    'uc','desc_det_anuncio','Dependencia','Número del procedimiento o contratación']]\
-                                [(df['scrapped_day'].isin(sab_dom_lun))]
-        
-        msg = f"{len(nuevas_alertas)} alertas encontradas con {len(nuevas_oportunidades)} requerimientos"
+        msg = f"replace_here alertas encontradas con {len(nuevas_alertas)} requerimientos"
         print(msg)
         
         return nuevas_alertas, msg
