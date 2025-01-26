@@ -449,6 +449,21 @@ def get_page_prices():
             else:# sí no aparecieron nuevos economicos en un minuto busca la siguiente página.
                 print("  no aparecieron nuevos economicos en un minuto")
 
+    #PARA MORAVI JC 26/01/25
+    if len(economicos_list)==0:
+        """Si la oportunida no cuenta con economicos se agrega un 'falso' economico
+        con el objetivo de que la oportunidad no sea ignorada por el algoritmo 
+        de alertas(la oportunidad será enviada sin bullets)
+        """
+        print_e(f"  Oportunidad {uri} no cuenta con Economicos")
+        economicos_list.append({
+            "Clave compendio":"Artificial Economico", "Codigo del expediente":cod_exp, "Número del procedimiento o contratación":num_proc,
+            "Partida específica":"25401", "Clave CUCoP+":"", "Descripción CUCoP+": "", 
+            "Descripción detallada":desc_det_anuncio, "Unidad de medida":"", "Cantidad solicitada":"",
+            "Clave partidas":claves_list, "Dependencia":dependencia, "desc_det_anuncio":desc_det_anuncio,
+            "uc":nom_uc, "fecha_presentacion":fecha_presentacion, "fecha_pub":fecha_pub, "uri":uri, "scrapped_day":today
+        })
+
     return economicos_list
 
 
