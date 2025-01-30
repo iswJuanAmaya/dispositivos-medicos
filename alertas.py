@@ -105,7 +105,7 @@ def generate_body(alerts_df:pd.DataFrame, msg:str)->str:
                     economicos.append(desc_detallada)
                 
         if len(economicos)>10:
-            html += f"<li>{ecos_cant} economicos encontrados</li>"
+            html += f"<li>{ecos_cant} oportunidades encontradas</li>"
         else:
             for enunciado in economicos:
                 html += f"<li>{enunciado.lower()}</li>"
